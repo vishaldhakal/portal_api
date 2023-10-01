@@ -79,18 +79,16 @@ class PreConstructionListCreateView(generics.ListCreateAPIView):
         """Generate slug from project name with unique in case of same name"""
         base_slug = slugify(project_name)
         unique_slug = base_slug
-        num = 1
-        while PreConstruction.objects.filter(slug=unique_slug).exists():
-            unique_slug = base_slug + "-" + str(num)
-            num += 1
 
-        slug = unique_slug
+        if PreConstruction.objects.filter(slug=unique_slug).exists():
+            slug = f'{base_slug}-{PreConstruction.objects.all().count()}'
+            unique_slug = slug
 
         preconstruction = PreConstruction.objects.create(
             developer=developer,
             city=city,
             project_name=project_name,
-            slug=slug,
+            slug=unique_slug,
             project_type=project_type,
             status=status,
             project_address=project_address,
@@ -155,16 +153,25 @@ class PreConstructionRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIV
         instance.price_to = price_to
         instance.builder_sales_email = builder_sales_email
         instance.builder_sales_phone = builder_sales_phone
-        instance.slug = slugify(project_name)
+
+        if slugify(project_name) != instance.slug:
+            base_slug = slugify(project_name)
+            unique_slug = base_slug
+            if PreConstruction.objects.filter(slug=unique_slug).exists():
+                slug = f'{base_slug}-{PreConstruction.objects.all().count()}'
+                unique_slug = slug
+            instance.slug = unique_slug
+        else:
+            instance.slug = slugify(project_name)
 
         """ Save images """
-        images = request.FILES.getlist('image')
+        images = request.FILES.getlist('images[]')
         for image in images:
             PreConstructionImage.objects.create(
                 preconstruction=instance, image=image)
 
         """ Save floorplans """
-        floorplans = request.FILES.getlist('floorplan')
+        floorplans = request.FILES.getlist('plans[]')
         for floorplan in floorplans:
             PreConstructionFloorPlan.objects.create(
                 preconstruction=instance, floorplan=floorplan)
@@ -297,3 +304,17 @@ class FavouriteListCreateView(generics.ListCreateAPIView):
 class FavouriteRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Favourite.objects.all()
     serializer_class = FavouriteSerializer
+
+
+@api_view(['DELETE'])
+def delete_image(request, pk):
+    image = PreConstructionImage.objects.get(id=pk)
+    image.delete()
+    return JsonResponse("Deleted Successfully", safe=False)
+
+
+@api_view(['DELETE'])
+def delete_floorplan(request, pk):
+    floorplan = PreConstructionFloorPlan.objects.get(id=pk)
+    floorplan.delete()
+    return JsonResponse("Deleted Successfully", safe=False)
